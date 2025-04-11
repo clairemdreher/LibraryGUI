@@ -10,7 +10,7 @@ class Database:
     def initialize_db(root):
         root.cursor.execute("""
             SELECT count(*) FROM sqlite_master
-            WHERE type='table' AND name = 'Book_Inventory
+            WHERE type='table' AND name = 'Book_Inventory'
         """)
 
         if root.cursor.fetchone()[0] == 0:

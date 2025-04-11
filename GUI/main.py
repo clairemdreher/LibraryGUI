@@ -31,8 +31,8 @@ class LibraryApp(tk.Tk):
         root.notebook.add(transaction_frame, text = "Transactions")
 
         root.setup_book_tab(book_frame)
-        root.setup_customer_tab(customer_frame)
-        root.setup_transaction_tab(transaction_frame)
+        #root.setup_customer_tab(customer_frame)
+        #root.setup_transaction_tab(transaction_frame)
 
     def setup_book_tab(root, frame):
         tree_frame = ttk.Frame(frame)
@@ -74,7 +74,7 @@ class LibraryApp(tk.Tk):
             books = root.db.execute_query("""
                 SELECT book_id, title, author_first_name, author_last_name, genre, publication_year, total_copies, available_copies
                 FROM Book_Inventory
-                ORDER BY title
+                ORDER BY book_id
             """).fetchall()
 
             for book in books:
@@ -82,6 +82,111 @@ class LibraryApp(tk.Tk):
 
         except Exception as e:
             messagebox.showerror("Database Error", f"Failed to load books:\n{str(e)}")
+
+    def add_book(root, book_data=None):
+        dialog = tk.Toplevel(root)
+        dialog.title("Add New Book" if not book_data else "Edit Book")
+        dialog.resizable(False, False)
+
+        fields = [
+            ("Title:", "title"),
+            ("Author First Name:", "author_first_name"),
+            ("Author Last Name:", "author_last_name"),
+            ("Genre:", "genre"),
+            ("Publication Year:", "publication_year"),
+            ("Total Copies:", "total_copies"),
+            ("Available Copies:", "available_copies")
+        ]
+
+        entries = {}
+        for row, (label, name) in enumerate(fields):
+            ttk.Label(dialog, text=label).grid(row=row, column=0, padx=5, pady=5, sticky='e')
+            entry = ttk.Entry(dialog)
+            entry.grid(row=row, column=1, padx=5, pady=5)
+
+            if book_data:
+                entry.insert(0, book_data[row+1])
+            entries[name] = entry
+
+        submit_text = "Add Book" if not book_data else "Update"
+        ttk.Button(
+            dialog,
+            text=submit_text,
+            command=lambda: root.save_book(
+                entries,
+                dialog,
+                book_data[0] if book_data else None
+            )
+        ).grid(row=len(fields), columnspan=2, pady=10)
+
+    def save_book(root, entries, dialog, book_id=None):
+        try:
+            total_copies = int(entries['total_copies'].get())
+            available_copies = int(entries['available_copies'].get())
+
+            if available_copies > total_copies:
+                raise ValueError("Available copies cannot exceed total copies")
+            
+            data = (
+                entries['title'].get(),
+                entries['author_first_name'].get(),
+                entries['author_last_name'].get(),
+                entries['genre'].get(),
+                entries['publication_year'].get(),
+                total_copies,
+                available_copies
+            )
+
+            if book_id:
+                root.db.execute_query("""
+                    UPDATE Book_Inventory 
+                    SET title=?, author_first_name=?, author_last_name=?, genre=?, publication_year=?, total_copies=?, available_copies=?
+                    WHERE book_id=?
+                """, (*data, book_id))
+            else:
+                root.db.execute_query("""
+                    INSERT INTO Book_Inventory (title, author_first_name, author_last_name, genre, publication_year, total_copies, available_copies)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, data)
+
+                root.db.conn.commit()
+                root.load_books()
+                dialog.destroy()
+                messagebox.showinfo("Success", "Book saved successfully")
+        
+        except ValueError as e:
+            messagebox.showerror("Input Error", f"Invalid input: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Operation failed: {str(e)}")
+
+    def edit_book(root):
+        selected = root.book_tree.focus()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a book to delete")
+            return
+        
+        book_data = root.book_tree.item(selected, 'values')
+        root.add_book(book_data)
+
+    def delete_book(root):
+        selected = root.book_tree.focus()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a book to delete")
+            return
+
+        book_id = root.book_tree.item(selected, 'values')[0]
+        if messagebox.askyesno("Confirm", "Delete this book permanently?"):
+            try:
+                root.db.execute_query("DELETE FROM Book_Inventory WHERE book_id=?",(book_id,))
+                root.db.conn.commit()
+                root.load_books()
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not delete book:\n{str(e)}")
+
+    def setup_member_tab(root, frame):
+        label = ttk.Label(frame, text = "Member Management", font = ('Arial', 12))
+        label.pack(pady=50) 
+
 
 if __name__ == "__main__":
     app = LibraryApp()
