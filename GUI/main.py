@@ -31,7 +31,7 @@ class LibraryApp(tk.Tk):
         root.notebook.add(transaction_frame, text = "Transactions")
 
         root.setup_book_tab(book_frame)
-        #root.setup_customer_tab(customer_frame)
+        root.setup_customer_tab(customer_frame)
         #root.setup_transaction_tab(transaction_frame)
 
     def setup_book_tab(root, frame):
@@ -41,7 +41,7 @@ class LibraryApp(tk.Tk):
         scroll_y = ttk.Scrollbar(tree_frame)
         scroll_y.pack(side='right', fill='y')
 
-        cols = ("ID", "Title", "Author First Name", "Author Last Name", "Genre", "Publication Year", "Total Copies", "Available Copies")
+        cols = ("Book ID", "Title", "Author First Name", "Author Last Name", "Genre", "Year", "Total Copies", "Available Copies")
         root.book_tree = ttk.Treeview(
             tree_frame,
             columns=cols,
@@ -50,7 +50,7 @@ class LibraryApp(tk.Tk):
             selectmode='browse'
         )
         scroll_y.config(command=root.book_tree.yview)
-        col_widths = [50, 250, 120, 120, 120, 60, 60, 80]
+        col_widths = [50, 200, 120, 120, 120, 60, 60, 80]
         for col, width in zip(cols, col_widths):
             root.book_tree.heading(col, text=col)
             root.book_tree.column(col, width=width, anchor='center')
@@ -183,9 +183,149 @@ class LibraryApp(tk.Tk):
             except Exception as e:
                 messagebox.showerror("Error", f"Could not delete book:\n{str(e)}")
 
-    def setup_member_tab(root, frame):
-        label = ttk.Label(frame, text = "Member Management", font = ('Arial', 12))
-        label.pack(pady=50) 
+    def setup_customer_tab(root, frame):
+        #label = ttk.Label(frame, text = "Member Management", font = ('Arial', 12))
+        #label.pack(pady=50) 
+
+        tree_frame = ttk.Frame(frame)
+        tree_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+        scroll_y = ttk.Scrollbar(tree_frame)
+        scroll_y.pack(side='right', fill='y')
+
+
+        cols = ("Customer ID", "First Name", "Last Name", "Email", "Phone", "Date Joined", "Status")
+        root.customer_tree = ttk.Treeview(
+            tree_frame,
+            columns=cols,
+            show='headings',
+            yscrollcommand=scroll_y.set,
+            selectmode='browse'
+        )
+        scroll_y.config(command=root.customer_tree.yview)
+        col_widths = [75, 100, 100, 150, 120, 60, 60, 80]
+        for col, width in zip(cols, col_widths):
+            root.customer_tree.heading(col, text=col)
+            root.customer_tree.column(col, width=width, anchor='center')
+
+        root.customer_tree.pack(fill='both', expand=True)
+
+        btn = ttk.Frame(frame)
+        btn.pack(pady=10)
+
+        ttk.Button(btn, text="Add Customer", command=root.add_customer).pack(side='left', padx=5)
+        #ttk.Button(btn, text="Edit Customer", command=root.edit_customer).pack(side='left', padx=5)
+        ttk.Button(btn, text="Delete Customer", command=root.delete_customer).pack(side='left', padx=5)
+        ttk.Button(btn, text="Refresh", command=root.load_customers).pack(side='left', padx=5)
+
+        root.load_customers()
+
+    def load_customers(root):
+        try:
+            root.customer_tree.delete(*root.customer_tree.get_children())
+
+            customers = root.db.execute_query("""
+                SELECT customer_id, first_name, last_name, email_address, phone_number, date_joined, status
+                FROM Customer_Details
+                ORDER BY customer_id
+            """).fetchall()
+
+            for customer in customers:
+                root.customer_tree.insert('', 'end', values=customer)
+
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Failed to load customers:\n{str(e)}")
+
+    def add_customer(root, customer_data=None):
+        dialog = tk.Toplevel(root)
+        dialog.title("Add New Customer" if not customer_data else "Edit Customer")
+        dialog.resizable(False, False)
+
+        fields = [
+            ("First Name:", "first_name"),
+            ("Last Name:", "last_name"),
+            ("Email:", "email_address"),
+            ("Phone:", "phone_number"),
+            ("Today's Date:", "date_joined"),
+            ("Status:", "status")
+        ]
+
+        entries = {}
+        for row, (label, name) in enumerate(fields):
+            ttk.Label(dialog, text=label).grid(row=row, column=0, padx=5, pady=5, sticky='e')
+            entry = ttk.Entry(dialog)
+            entry.grid(row=row, column=1, padx=5, pady=5)
+
+            if customer_data:
+                entry.insert(0, customer_data[row+1])
+            entries[name]=entry
+
+        submit_text = "Add Customer" if not customer_data else "Update"
+        ttk.Button(
+            dialog,
+            text=submit_text,
+            command=lambda: root.save_customer(
+                entries,
+                dialog,
+                customer_data[0] if customer_data else None
+            )
+        ).grid(row=len(fields), columnspan=2, pady=10)
+
+    def save_customer(root, entries, dialog, customer_id=None):
+        try:
+           # total_copies = int(entries['total_copies'].get())
+            #available_copies = int(entries['available_copies'].get())
+
+            #if available_copies > total_copies:
+             #   raise ValueError("Available copies cannot exceed total copies")
+            
+            data = (
+                entries['first_name'].get(),
+                entries['last_name'].get(),
+                entries['email_address'].get(),
+                entries['phone_number'].get(),
+                entries['date_joined'].get(),
+                entries['status'].get()
+            )
+
+            if customer_id:
+                root.db.execute_query("""
+                    UPDATE Customer details
+                    SET first_name=?, last_name=?, email_address=?, phone_number=?, date_joined=?, status=?
+                    WHERE customer_id=?
+                """, (*data, customer_id))
+            else:
+                root.db.execute_query("""
+                    INSERT INTO Customer_Details (first_name, last_name, email_address, phone_number, date_joined, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, data)
+
+                root.db.conn.commit()
+                root.load_customers()
+                dialog.destroy()
+                messagebox.showinfo("Success", "Customer saved successfully")
+        
+        except ValueError as e:
+            messagebox.showerror("Input Error", f"Invalid input: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Operation failed: {str(e)}")        
+
+    def delete_customer(root):
+        selected = root.customer_tree.focus()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a customer to delete")
+            return
+        
+        customer_id = root.customer_tree.item(selected, 'values')[0]
+        if messagebox.askyesno("Confirm", "Delete this customer permanently?"):
+            try:
+                root.db.execute_query("DELETE FROM Customer_Details WHERE customer_id=?", (customer_id,))
+                root.db.conn.commit()
+                root.load_customers()
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not delete customer:\n{str(e)}")
+
+
 
 
 if __name__ == "__main__":
