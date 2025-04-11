@@ -6,20 +6,20 @@ def connect():
 # CREATE Functions
 
 # add new books to library/ Books_Inventory
-def add_book(title, author_name, genre, total_copies):
+def add_book(title, author_first_name, author_last_name, genre, total_copies):
     con = connect()
     cur = con.cursor()
-    cur.execute("INSERT INTO Book_Inventory (title, author_name, genre, total_copies, available_copies) VALUES (?, ?, ?, ?, ?)", 
-                (title, author_name, genre, total_copies, total_copies))
+    cur.execute("INSERT INTO Book_Inventory (title, author_first_name, author_last_name, genre, total_copies, available_copies) VALUES (?, ?, ?, ?, ?)", 
+                (title, author_first_name, author_last_name, genre, total_copies, total_copies))
     con.commit()
     con.close()
 
 # add new customers to Customer_Details
-def add_customer(name,email, phone, date_joined, status):
+def add_customer(first_name, last_name, email, phone, date_joined, status):
     con = connect()
     cur = con.cursor()
-    cur.execute("INSERT INTO Customer_Details (name, email_address, phone_number, date_joined, status) VALUES (?, ?, ?, ?, ?)",
-                (name, email, phone, date_joined, status) )
+    cur.execute("INSERT INTO Customer_Details (first_name, last_name, email_address, phone_number, date_joined, status) VALUES (?, ?, ?, ?, ?)",
+                (first_name, last_name, email, phone, date_joined, status) )
     con.commit()
     con.close()
 
@@ -78,7 +78,7 @@ def get_checked_out_books():
     con = connect()
     cur = con.cursor()
     cur.execute("""
-        SELECT Transactions.transaction_id, Customer_Details.name, Book_Inventory.title, Transactions.checkout_date, Transactions.due_date
+        SELECT Transactions.transaction_id, Customer_Details.first_name, Customer_Details.last_name, Book_Inventory.title, Transactions.checkout_date, Transactions.due_date
         FROM Transactions
         JOIN Customer_Details ON Transactions.customer_id = Customer_Details.customer_id
         JOIN Book_Inventory ON Transactions.book_id = Book_Inventory.book_id
@@ -149,9 +149,9 @@ def delete_customer(customer_id):
 if __name__ == "__main__":
 
     # Test create 
-    add_book('Brave New World', 'Aldous Huzley', 'Dystopian', 4)
+    add_book('Brave New World', 'Aldous', 'Huzley', 'Dystopian', 4)
 
-    add_customer("Alice Johnson", "alicejohnson33@gmail.com", "324-334-5532", "03/30/2025", "Active")
+    add_customer("Alice", "Johnson", "alicejohnson33@gmail.com", "324-334-5532", "03/30/2025", "Active")
 
     create_transaction(1, 5, "03/31/2025", "05/01/2025")
 

@@ -8,12 +8,13 @@ cur = con.cursor()
 
 
 # Functional Dependencies:
-# book_id uniquely determines title, author, genre, total_copies, available_copies
+# book_id uniquely determines title, author first name, author last name, genre, total_copies, available_copies
 cur.execute("""
     CREATE TABLE IF NOT EXISTS Book_Inventory (
         book_id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
-        author_name TEXT NOT NULL,
+        author_first_name TEXT NOT NULL,
+        author_last_name TEXT NOT NULL,
         genre TEXT,
         total_copies INTEGER NOT NULL,
         available_copies INTEGER NOT NULL
@@ -21,11 +22,12 @@ cur.execute("""
 """)
 
 # Functional Dependencies:
-# customer_id uniquely determines name, email_address, phone_numberm, date_joined, and status
+# customer_id uniquely determines first name, last name email_address, phone_numberm, date_joined, and status
 cur.execute("""
     CREATE TABLE IF NOT EXISTS Customer_Details (
         customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
         email_address TEXT,
         phone_number TEXT NOT NULL,
         date_joined TEXT NOT NULL,
@@ -42,7 +44,9 @@ cur.execute("""
         book_id INTEGER NOT NULL,
         checkout_date TEXT NOT NULL,
         due_date TEXT,
-        status TEXT NOT NULL CHECK(status in ('Checked Out', 'Returned'))  
+        status TEXT NOT NULL CHECK(status in ('Checked Out', 'Returned')),
+        FOREIGN KEY (customer_id) REFERENCES Customer_Details(customer_id),
+        FOREIGN KEY (book_id) REFERENCES Book_Inventory(book_id)     
     )
 """)
 
@@ -54,7 +58,9 @@ cur.execute("""
         customer_id INTEGER NOT NULL,
         book_id INTEGER NOT NULL,
         checkout_date TEXT NOT NULL,
-        due_date TEXT NOT NULL
+        due_date TEXT NOT NULL.
+        FOREIGN KEY (customer_id) REFERENCES Customer_Details(customer_id),
+        FOREIGN KEY (book_id) REFERENCES Book_Inventory(book_id)
     )
 """)
 

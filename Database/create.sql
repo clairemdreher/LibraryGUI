@@ -9,7 +9,8 @@
 CREATE TABLE Book_Inventory (
     book_id INTEGER PRIMARY KEY,
     title TEXT NOT NULL,
-    author_name TEXT NOT NULL,
+    author_first_name TEXT NOT NULL,
+    author_last_name TEXT NOT NULL,
     genre TEXT,
     publication_year YEAR,
     total_copies INTEGER NOT NULL,
@@ -22,7 +23,8 @@ CREATE TABLE Book_Inventory (
 -- no transitive dependencies, so it is 3nf
 CREATE TABLE Customer_Details (
     customer_id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
     email_address TEXT UNIQUE,
     phone_number TEXT NOT NULL,
     date_joined DATE NOT NULL,
@@ -40,7 +42,9 @@ CREATE TABLE Transactions (
     checkout_date TEXT NOT NULL,
     due_date DATE NOT NULL,
     return_date DATE,
-    status TEXT NOT NULL CHECK(status in ('Checked Out', 'Returned'))
+    status TEXT NOT NULL CHECK(status in ('Checked Out', 'Returned')),
+    FOREIGN KEY (customer_id) REFERENCES Customer_Details(customer_id),
+    FOREIGN KEY (book_id) REFERENCES Book_Inventory(book_id)
 );
 
 -- Functional Dependencies:
@@ -53,7 +57,9 @@ CREATE TABLE Checked_Out_Books (
     customer_id INTEGER NOT NULL,
     book_id INTEGER NOT NULL,
     checkout_date DATE NOT NULL,
-    due_date DATE NOT NULL
+    due_date DATE NOT NULL,
+    FOREIGN KEY (customer_id) REFERENCES Customer_Details(customer_id),
+    FOREIGN KEY (book_id) REFERENCES Book_Inventory(book_id) 
 );
 
 -- No foreign key constraints or triggers

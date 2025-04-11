@@ -1,13 +1,13 @@
 -- CREATE
 
 -- Create a new book / add a new book to the library
-INSERT INTO Book_Inventory (title, author_name, isbn, genre, publication_year, total_copies, available_copies)
-VALUES ('Brave New World', 'Aldous Huxley', '0060850523', 'Dystopian Fiction', 1932, 1, 1);
+INSERT INTO Book_Inventory (title, author_first_name, author_last_name, genre, publication_year, total_copies, available_copies)
+VALUES ('Brave New World', 'Aldous', 'Huxley', 'Dystopian Fiction', 1932, 1, 1);
 
 
 -- Create a new customer / add new customer
-INSERT INTO Customer_Details (name, email_address, phone_number, date_joined, status)
-VALUES ('Greg House', 'greghouse@house.com', '111-111-1111', '2025-03-31', 'Active');
+INSERT INTO Customer_Details (first_name, last_name, email_address, phone_number, date_joined, status)
+VALUES ('Greg', 'House', 'greghouse@house.com', '111-111-1111', '2025-03-31', 'Active');
 
 
 -- Create a transaction / check out a book
@@ -40,7 +40,7 @@ SELECT * FROM Customer_Details;
 SELECT name, status FROM Customer_Details WHERE customer_id = 3;
 
 -- Read / display all books currently checked out
-SELECT Transactions.transaction_id, Customer_Details.name, Book_Inventory.title, Transactions.checkout_date, Transactions.due_date
+SELECT Transactions.transaction_id, Customer_Details.first_name, Customer_Details.last_name, Book_Inventory.title, Transactions.checkout_date, Transactions.due_date
 FROM Transactions
 JOIN Customer_Details ON Transactions.customer_id = Customer_Details.customer_id
 JOIN Book_Inventory ON Transactions.book_id = Book_Inventory.book_id
