@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
 from db_connector import Database
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class LibraryApp(tk.Tk):
     def __init__(root):
@@ -440,29 +440,11 @@ class LibraryApp(tk.Tk):
         btn.pack(pady=10)
 
         ttk.Button(btn, text="Check In Book", command=root.checkin_book).pack(side='left', padx=5)
-        ttk.Button(btn, text="Check Out Book", command=root.checkout_book).pack(side='left', padx=5)
+        ttk.Button(btn, text="Check Out Book", command=root.show_checkout_dialog).pack(side='left', padx=5)
         ttk.Button(btn, text="View Details", command=root.show_transaction_details).pack(side='left', padx=5)
         ttk.Button(btn, text="Refresh", command=root.load_customers).pack(side='left', padx=5)
 
         root.load_transactions()
-
-    def debug_check_transactions(root):
-        try:
-            transactions = root.db.execute_query("SELECT * FROM Transactions").fetchall()
-            print("\nAll Transactions in Database:")
-            for t in transactions:
-                print(t)
-            
-            checked_out = root.db.execute_query(
-                "SELECT * FROM Transactions WHERE status = 'Checked Out'").fetchall()
-            print("\nChecked Out Transactions:")
-            for t in checked_out:
-                print(t)
-            
-            return True
-        except Exception as e:
-            print(f"Debug failed: {str(e)}")
-            return False
 
     def show_transaction_details(root):
         try:
@@ -503,7 +485,7 @@ class LibraryApp(tk.Tk):
                 ("Phone:", details[9]),
                 ("Checkout Date:", details[1]),
                 ("Due Date:", details[2]),
-                ("Return Date:", details[3] if details[3] else " "),
+                ("Return Date:", details[3] if details[3] else "Not Returned"),
                 ("Status:", details[4])
             ]
 
@@ -517,7 +499,7 @@ class LibraryApp(tk.Tk):
                 btn = ttk.Frame(dialog)
                 btn.grid(row=len(fields), columnspan=2, pady=10)
 
-                ttk.Button(btn, text="Check In", command=lambda: root.checkin_book(transaction_id, dialog)).pack(side='left', padx=5)
+                ttk.Button(btn, text="Check In", command= root.checkin_book).pack(side='left', padx=5)
                 ttk.Button(btn, text="Close", command=dialog.destroy).pack(side='left', padx=5)
             else:
                 ttk.Button(dialog, text="Close", command=dialog.destroy).grid(row=len(fields), columnspan=2, pady=10)
@@ -589,19 +571,137 @@ class LibraryApp(tk.Tk):
                     WHERE transaction_id = ?
                 """,(transaction_id,))
 
+                root.db.execute_query("""
+                    DELETE FROM Checked_Out_Books
+                    WHERE transaction_id = ?
+                """, (transaction_id,))
+
                 root.db.conn.commit()
 
                 messagebox.showinfo("Success", f"'{book_title} (ID = {book_id})' has been checked in")
                 root.load_transactions()
                 root.load_books()
+                root.load_checkout_books()
 
             except Exception as e:
                 root.db.conn.rollback()
                 messagebox.showerror("Database Error", f"Error: {str(e)}")
-           
-    def checkout_book(root):
-        return
+
+    def show_checkout_dialog(root):
+        root.dialog = tk.Toplevel(root)
+        root.dialog.title("Check Out Book")
+        root.dialog.geometry("300x150")
+
+        default_due = (datetime.now() + timedelta(days=28)).strftime('%Y-%m-%d')
+
+        ttk.Label(root.dialog, text="Book:").grid(row=0, column=0, padx=5, pady=5)
+        root.book_combo = ttk.Combobox(root.dialog, state='readonly')
+        root.book_combo.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(root.dialog, text="Customer:").grid(row=1, column=0, padx=5, pady=5)
+        root.customer_combo = ttk.Combobox(root.dialog, state='readonly')
+        root.customer_combo.grid(row=1, column=1, padx=5, pady=5)
+
+        ttk.Label(root.dialog, text="Due Date:").grid(row=2, column=0, padx=5, pady=5)
+        root.due_date_entry = ttk.Entry(root.dialog)
+        root.due_date_entry.insert(0, default_due)
+        root.due_date_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        ttk.Button(root.dialog, text="Submit", command=root.process_checkout).grid(row=3, columnspan=2, pady=10)
+        root.load_available_books()
+        root.load_active_customers()
+
+    def process_checkout(root):
+        try:
+            book_text = root.book_combo.get()
+            if not book_text:
+                messagebox.showwarning("Warning", "Please select a book to check out")
+                return
+            
+            book_id = int(book_text.split('(ID: ')[1].rstrip(')'))
+
+            cust_text = root.customer_combo.get()
+            if not cust_text:
+                messagebox.showwarning("Warning", "Please select a customer")
+                return
+            
+            customer_id = int(cust_text.split('(ID: ')[1].rstrip(')'))
+
+            due_date = root.due_date_entry.get()
+            try:
+                datetime.strptime(due_date, '%Y-%m-%d')
+            except ValueError:
+                messagebox("Error", "Invalid date formate. Use YYYY-MM-DD")
+                return
+            
+            if not messagebox.askyesno("Confirm", "Process this checkout?"):
+                return
+            
+            checkout_date = datetime.now().strftime('%Y-%m-%d')
+
+            root.db.execute_query("""
+                INSERT INTO Transactions
+                (customer_id, book_id, checkout_date, due_date, status)
+                VALUES (?, ?, ?, ?, 'Checked Out')
+            """,(customer_id, book_id, checkout_date, due_date))
+
+            root.db.execute_query("""
+                UPDATE Book_Inventory
+                SET available_copies = available_copies - 1
+                WHERE book_id = ?
+            """, (book_id,))
+
+            root.db.execute_query("""
+                INSERT INTO Checked_Out_Books
+                (transaction_id, customer_id, book_id, checkout_date, due_date)
+                SELECT last_insert_rowid(), ?, ?, ?, ?
+            """, (customer_id, book_id, checkout_date, due_date))
+
+            root.db.conn.commit()
+
+            messagebox.showinfo("Success", "Book checked out successfully")
+            #dialog.destroy()
+            root.load_transactions()
+            root.load_books()
+            root.load_checkout_books()
         
+        except Exception as e:
+            root.db.conn.rollback()
+            messagebox.showerror("Error", f"Checkout failed: {str(e)}")
+
+    def load_available_books(root):
+        try:
+            books = root.db.execute_query("""
+                SELECT book_id, title
+                FROM Book_Inventory
+                WHERE available_copies > 0
+                ORDER BY title
+            """).fetchall()
+
+            root.book_combo['values'] = [f"{title} (ID: {id})" for id, title in books]
+            if books:
+                root.book_combo.current(0)
+            #root.book_combo.set('Select a book')
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load books: {str(e)}")
+
+    def load_active_customers(root):
+        try:
+            customers = root.db.execute_query("""
+                SELECT customer_id, first_name, last_name 
+                FROM Customer_Details 
+                WHERE status = 'Active'
+                ORDER BY last_name
+            """).fetchall()
+
+            root.customer_combo['values'] = [f"{first} {last} (ID: {id})" for id, first, last in customers]
+            if customers:
+                root.customer_combo.current(0)            
+            #root.customer_combo.set('Select a customer')
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load customers: {str(e)}")  
+
     def setup_checkedout_tab(root, frame):
         tree_frame = ttk.Frame(frame)
         tree_frame.pack(fill='both', expand=True, padx=10, pady=10)
@@ -629,12 +729,71 @@ class LibraryApp(tk.Tk):
         btn = ttk.Frame(frame)
         btn.pack(pady=10)
 
-        ttk.Button(btn, text="Check Out Book", command=root.checkout_book).pack(side='left', padx=5)
-        ttk.Button(btn, text="Check In Book", command=root.checkin_book).pack(side='left', padx=5)
-        #ttk.Button(btn, text="Get Check Out Information", command=root.checkout_info).pack(side='left', padx=5)
+        ttk.Button(btn, text="Get Check Out Information", command=root.checkout_info).pack(side='left', padx=5)
         ttk.Button(btn, text="Refresh", command=root.load_checkout_books).pack(side='left', padx=5)
 
         root.load_checkout_books()
+
+    def checkout_info(root):
+        try:
+            selected = root.checkout_tree.focus()
+            if not selected:
+                messagebox.showwarning("Warning", "Please select a checkout to view")
+                return
+            
+            checkout_id = root.checkout_tree.item(selected)['values'][0]
+
+            details = root.db.execute_query("""
+                SELECT 
+                    ch.checkout_id, ch.checkout_date, ch.due_date, ch.transaction_id, ch.customer_id, ch.book_id,
+                    c.first_name || ' ' || c.last_name as customer, c.phone_number, c.email_address,
+                    b.title, b.author_first_name || ' ' || b.author_last_name as author
+                FROM Checked_Out_Books ch
+                JOIN Customer_Details c ON c.customer_id = ch.customer_id
+                JOIN Book_Inventory b on b.book_id = ch.book_id
+                WHERE checkout_id = ?
+            """, (checkout_id,)).fetchone()
+
+            if not details:
+                messagebox.showerror("Error", "Checkout details not found")
+                return
+
+            dialog = tk.Toplevel(root)
+            dialog.title(f"Transaction #{checkout_id} Details")
+            dialog.geometry("300x400")
+
+            fields = [
+                ("Checkout ID:", details[0]),
+                ("Transaction ID:", details[3]),
+                ("Book:", details[9]),
+                ("Book ID:", details[5]),
+                ("Author:", f"{details[10]}"),
+                ("Customer:", f"{details[6]}"),
+                ("Customer ID:", details[4]),
+                ("Email:", details[8]),
+                ("Phone:", details[7]),
+                ("Checkout Date:", details[1]),
+                ("Due Date:", details[2]),
+            ]
+
+            for row, (label, value) in enumerate(fields):
+                ttk.Label(dialog, text=label). grid(row=row, column=0, sticky='e', padx=5, pady=5)
+                ttk.Label(dialog, text=value).grid(row=row, column=1, sticky='w', padx=5, pady=5)
+
+            ttk.Button(dialog, text="Close", command=dialog.destroy).grid(row=len(fields), columnspan=2, pady=10)
+
+            if details[4] == 'Checked Out':
+                btn = ttk.Frame(dialog)
+                btn.grid(row=len(fields), columnspan=2, pady=10)
+
+                ttk.Button(btn, text="Check In", command= root.checkin_book).pack(side='left', padx=5)
+                ttk.Button(btn, text="Close", command=dialog.destroy).pack(side='left', padx=5)
+            else:
+                ttk.Button(dialog, text="Close", command=dialog.destroy).grid(row=len(fields), columnspan=2, pady=10)
+
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Failed to load details:\n{str(e)}")
+            
 
     def load_checkout_books(root):
         try:
