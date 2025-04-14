@@ -227,6 +227,9 @@ class LibraryApp(tk.Tk):
                 root.load_books()
                 dialog.destroy()
                 messagebox.showinfo("Success", "Book saved successfully")
+
+            dialog.destroy()
+            root.load_books()
         
         except ValueError as e:
             messagebox.showerror("Input Error", f"Invalid input: {str(e)}")
@@ -281,6 +284,15 @@ class LibraryApp(tk.Tk):
 
         root.customer_tree.pack(fill='both', expand=True)
 
+        search_frame = ttk.Frame(frame)
+        search_frame.pack(padx=5, pady=5, fill='x')
+
+        ttk.Label(search_frame, text="Search Customers:").pack(side='left', padx=5)
+        root.customer_search_entry = ttk.Entry(search_frame, width=30)
+        root.customer_search_entry.pack(side='left', padx=5)
+        ttk.Button(search_frame, text="Search", command=root.search_customers).pack(side='left', padx=5)
+        ttk.Button(search_frame, text="Clear", command=root.load_customers).pack(side='left',padx=5)
+
         btn = ttk.Frame(frame)
         btn.pack(pady=10)
 
@@ -293,6 +305,38 @@ class LibraryApp(tk.Tk):
 
 
         root.load_customers()
+
+    def search_customers(root):
+        search_term = root.customer_search_entry.get().strip()
+        if not search_term:
+            messagebox.showwarning("Warning", "Please enter a search term")
+            return
+        
+        try:
+            root.customer_tree.delete(*root.customer_tree.get_children())
+
+            customers = root.db.execute_query("""
+                SELECT customer_id, first_name, last_name, email_address, 
+                    phone_number, date_joined, status
+                FROM Customer_Details
+                WHERE first_name LIKE ? 
+                OR last_name LIKE ?
+                OR email_address LIKE ?
+                OR phone_number LIKE ?
+                OR (first_name || ' ' || last_name) LIKE ?
+                ORDER BY last_name, first_name
+            """,(f"%{search_term}%", f"%{search_term}%", f"%{search_term}%", 
+         f"%{search_term}%", f"%{search_term}%")).fetchall()
+
+            if not customers:
+                messagebox.showinfo("No Results", "No customers found")
+                return
+            
+            for customer in customers:
+                root.customer_tree.insert('', 'end', values = customer)
+
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Search failed:\n{str(e)}")
 
     def reactivate_customer(root):
         selected = root.customer_tree.focus()
@@ -420,6 +464,9 @@ class LibraryApp(tk.Tk):
                 root.load_customers()
                 dialog.destroy()
                 messagebox.showinfo("Success", "Customer saved successfully")
+
+            dialog.destroy()
+            root.load_customers()
         
         except ValueError as e:
             messagebox.showerror("Input Error", f"Invalid input: {str(e)}")
