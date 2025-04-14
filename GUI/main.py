@@ -74,16 +74,45 @@ class LibraryApp(tk.Tk):
         ttk.Button(search_frame, text="Search", command = root.search_by_author).pack(side='left', padx=0)
         ttk.Button(search_frame, text="Clear", command=root.load_books).pack(side='left', padx=0)
        
-        #root.author_search_entry.binf('<Return>', lambda e: root.search_by_author())
+        ttk.Label(search_frame, text="Search Title:").pack(side='left', padx=5)
+        root.title_search_entry = ttk.Entry(search_frame, width=30)
+        root.title_search_entry.pack(side='left', padx=5)
+        ttk.Button(search_frame, text="Search", command=root.search_by_title).pack(side='left',padx=5)
+        ttk.Button(search_frame, text="Clear", command=root.load_books).pack(side='left', padx=5)
 
         ttk.Button(btn, text="Add Book", command=root.add_book).pack(side='left', padx=5)
         ttk.Button(btn, text="Edit Book", command=root.edit_book).pack(side='left', padx=5)
         ttk.Button(btn, text="Delete Book", command=root.delete_book).pack(side='left', padx=5)
         ttk.Button(btn, text="Refresh", command=root.load_books).pack(side='left', padx=5)
         # ttk.Button(btn, text="Search for Book Title", command=root.search_title).pack(side='left')
-        # ttk.Button(btn, text = "Search for Author", command=root.search_author).pack(side='left', padx=5)
 
         root.load_books()
+
+    def search_by_title(root):
+        search_term = root.title_search_entry.get().strip()
+        if not search_term:
+            messagebox.showwarning("Warning", "Please enter a title to search")
+            return
+        
+        try:
+            root.book_tree.delete(*root.book_tree.get_children())
+
+            books = root.db.execute_query("""
+                SELECT book_id, title, author_first_name, author_last_name, genre, publication_year, total_copies, available_copies
+                FROM Book_Inventory
+                WHERE title LIKE ?
+                ORDER BY title
+            """, (f"%{search_term}%",)).fetchall()
+
+            if not books:
+                messagebox.showinfo("No Results", "No books found with searched title")
+                return
+            
+            for book in books:
+                root.book_tree.insert('', 'end', values=book)
+
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Search failed:\n{str(e)}")
 
     def search_by_author(root):
         search_term = root.author_search_entry.get().strip()
@@ -103,7 +132,7 @@ class LibraryApp(tk.Tk):
             """, (f"%{search_term}%", f"%{search_term}%")).fetchall()
 
             if not books:
-                messagebox.showinfo("No results", "No books found by author")
+                messagebox.showinfo("No results", "No books found by searched author")
                 return
             
             for book in books:
